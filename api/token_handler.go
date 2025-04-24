@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -85,6 +86,9 @@ func GetRedisTokenHandler(c *gin.Context) {
 		return
 	}
 
+	// 对keys进行排序，确保顺序稳定
+	sort.Sort(sort.Reverse(sort.StringSlice(keys)))
+
 	// 使用并发方式批量获取token信息
 	var wg sync.WaitGroup
 	tokenList := make([]TokenInfo, 0, len(keys))
@@ -156,6 +160,11 @@ func GetRedisTokenHandler(c *gin.Context) {
 	for info := range tokenListChan {
 		tokenList = append(tokenList, info)
 	}
+
+	// 对token列表按照token字符串进行排序，确保每次刷新结果顺序一致
+	sort.Slice(tokenList, func(i, j int) bool {
+		return tokenList[i].Token > tokenList[j].Token // 降序排序
+	})
 
 	// 计算总页数和分页数据
 	totalItems := len(tokenList)
@@ -526,15 +535,19 @@ func CheckAllTokensHandler(c *gin.Context) {
 	var mu sync.Mutex
 	var updatedCount int
 	var disabledCount int
+	var validTokenCount int
 
 	for _, key := range keys {
 		// 获取token状态，跳过已标记为不可用的token
 		status, err := config.RedisHGet(key, "status")
 		if err == nil && status == "disabled" {
-			mu.Lock()
-			mu.Unlock()
 			continue // 跳过此token
 		}
+
+		// 计算有效token数量
+		mu.Lock()
+		validTokenCount++
+		mu.Unlock()
 
 		wg.Add(1)
 		go func(key string) {
@@ -568,7 +581,7 @@ func CheckAllTokensHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "success",
-		"total":    len(keys),
+		"total":    validTokenCount,
 		"updated":  updatedCount,
 		"disabled": disabledCount,
 	})
