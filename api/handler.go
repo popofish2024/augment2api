@@ -393,222 +393,76 @@ func detectLanguage(req OpenAIRequest) string {
 func getFullToolDefinitions() []ToolDefinition {
 	return []ToolDefinition{
 		{
-			Name:        "web-search",
-			Description: "Search the web for information. Returns results in markdown format.\nEach result includes the URL, title, and a snippet from the page if available.\n\nThis tool uses Google's Custom Search API to find relevant web pages.",
-			InputSchemaJSON: `{
-				"description": "Input schema for the web search tool.",
-				"properties": {
-					"query": {
-						"description": "The search query to send.",
-						"title": "Query",
-						"type": "string"
-					},
-					"num_results": {
-						"default": 5,
-						"description": "Number of results to return",
-						"maximum": 10,
-						"minimum": 1,
-						"title": "Num Results",
-						"type": "integer"
-					}
-				},
-				"required": ["query"],
-				"title": "WebSearchInput",
-				"type": "object"
-			}`,
-			ToolSafety: 0,
+			Name:            "save-file",
+			Description:     "Save a new file. Use this tool to write new files with the attached content. It CANNOT modify existing files. Do NOT use this tool to edit an existing file by overwriting it entirely. Use the str-replace-editor tool to edit existing files instead.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\",\"description\":\"The path of the file to save.\"},\"file_content\":{\"type\":\"string\",\"description\":\"The content of the file.\"},\"add_last_line_newline\":{\"type\":\"boolean\",\"description\":\"Whether to add a newline at the end of the file (default: true).\"}},\"required\":[\"file_path\",\"file_content\"]}",
+			ToolSafety:      1,
 		},
 		{
-			Name:        "web-fetch",
-			Description: "Fetches data from a webpage and converts it into Markdown.\n\n1. The tool takes in a URL and returns the content of the page in Markdown format;\n2. If the return is not valid Markdown, it means the tool cannot successfully parse this page.",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"url": {
-						"type": "string",
-						"description": "The URL to fetch."
-					}
-				},
-				"required": ["url"]
-			}`,
-			ToolSafety: 0,
+			Name:            "launch-process",
+			Description:     "Launch a new process with a shell command. A process can be waiting (`wait=true`) or non-waiting (`wait=false`).\n\nIf `wait=true`, launches the process in an interactive terminal, and waits for the process to complete up to\n`max_wait_seconds` seconds. If the process ends during this period, the tool call returns. If the timeout\nexpires, the process will continue running in the background but the tool call will return. You can then\ninteract with the process using the other process tools.\n\nNote: Only one waiting process can be running at a time. If you try to launch a process with `wait=true`\nwhile another is running, the tool will return an error.\n\nIf `wait=false`, launches a background process in a separate terminal. This returns immediately, while the\nprocess keeps running in the background.\n\nNotes:\n- Use `wait=true` processes when the command is expected to be short, or when you can't\nproceed with your task until the process is complete. Use `wait=false` for processes that are\nexpected to run in the background, such as starting a server you'll need to interact with, or a\nlong-running process that does not need to complete before proceeding with the task.\n- If this tool returns while the process is still running, you can continue to interact with the process\nusing the other available tools. You can wait for the process, read from it, write to it, kill it, etc.\n- You can use this tool to interact with the user's local version control system. Do not use the\nretrieval tool for that purpose.\n- If there is a more specific tool available that can perform the function, use that tool instead of\nthis one.\n\nThe OS is darwin.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"command\":{\"type\":\"string\",\"description\":\"The shell command to execute.\"},\"wait\":{\"type\":\"boolean\",\"description\":\"Whether to wait for the command to complete.\"},\"max_wait_seconds\":{\"type\":\"number\",\"description\":\"Number of seconds to wait for the command to complete. Only relevant when wait=true. 10 minutes may be a good default: increase from there if needed.\"},\"cwd\":{\"type\":\"string\",\"description\":\"Working directory for the command. If not supplied, uses the current working directory.\"}},\"required\":[\"command\",\"wait\",\"max_wait_seconds\"]}",
+			ToolSafety:      2,
 		},
 		{
-			Name:        "codebase-retrieval",
-			Description: "This tool is Augment's context engine, the world's best codebase context engine. It:\n1. Takes in a natural language description of the code you are looking for;\n2. Uses a proprietary retrieval/embedding model suite that produces the highest-quality recall of relevant code snippets from across the codebase;\n3. Maintains a real-time index of the codebase, so the results are always up-to-date and reflects the current state of the codebase;\n4. Can retrieve across different programming languages;\n5. Only reflects the current state of the codebase on the disk, and has no information on version control or code history.",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"information_request": {
-						"type": "string",
-						"description": "A description of the information you need."
-					}
-				},
-				"required": ["information_request"]
-			}`,
-			ToolSafety: 1,
+			Name:            "read-process",
+			Description:     "Read output from a terminal.\n\nIf `wait=true` and the process has not yet completed, waits for the terminal to complete up to `max_wait_seconds` seconds before returning its output.\n\nIf `wait=false` or the process has already completed, returns immediately with the current output.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"terminal_id\":{\"type\":\"integer\",\"description\":\"Terminal ID to read from.\"},\"wait\":{\"type\":\"boolean\",\"description\":\"Whether to wait for the command to complete.\"},\"max_wait_seconds\":{\"type\":\"number\",\"description\":\"Number of seconds to wait for the command to complete. Only relevant when wait=true. 1 minute may be a good default: increase from there if needed.\"}},\"required\":[\"terminal_id\",\"wait\",\"max_wait_seconds\"]}",
+			ToolSafety:      1,
 		},
 		{
-			Name:        "shell",
-			Description: "Execute a shell command.\n\n- You can use this tool to interact with the user's local version control system. Do not use the\nretrieval tool for that purpose.\n- If there is a more specific tool available that can perform the function, use that tool instead of\nthis one.\n\nThe OS is darwin. The shell is 'bash'.",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"command": {
-						"type": "string",
-						"description": "The shell command to execute."
-					}
-				},
-				"required": ["command"]
-			}`,
-			ToolSafety: 2,
+			Name:            "kill-process",
+			Description:     "Kill a process by its process ID.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"terminal_id\":{\"type\":\"integer\",\"description\":\"Process ID to kill.\"}},\"required\":[\"terminal_id\"]}",
+			ToolSafety:      1,
 		},
 		{
-			Name:        "str-replace-editor",
-			Description: "Custom editing tool for viewing, creating and editing files\n* `path` is a file path relative to the workspace root\n* command `view` displays the result of applying `cat -n`.\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`\n* `insert` and `str_replace` commands output a snippet of the edited section for each entry. This snippet reflects the final state of the file after all edits and IDE auto-formatting have been applied.\n\n\nNotes for using the `str_replace` command:\n* Use the `str_replace_entries` parameter with an array of objects\n* Each object should have `old_str`, `new_str`, `old_str_start_line_number` and `old_str_end_line_number` properties\n* The `old_str_start_line_number` and `old_str_end_line_number` parameters are 1-based line numbers\n* Both `old_str_start_line_number` and `old_str_end_line_number` are INCLUSIVE\n* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespace!\n* Empty `old_str` is allowed only when the file is empty or contains only whitespaces\n* It is important to specify `old_str_start_line_number` and `old_str_end_line_number` to disambiguate between multiple occurrences of `old_str` in the file\n* Make sure that `old_str_start_line_number` and `old_str_end_line_number` do not overlap with other entries in `str_replace_entries`\n* The `new_str` parameter should contain the edited lines that should replace the `old_str`. Can be an empty string to delete content\n\nNotes for using the `insert` command:\n* Use the `insert_line_entries` parameter with an array of objects\n* Each object should have `insert_line` and `new_str` properties\n* The `insert_line` parameter specifies the line number after which to insert the new string\n* The `insert_line` parameter is 1-based line number\n* To insert at the very beginning of the file, use `insert_line: 0`\n\nNotes for using the `view` command:\n* Strongly prefer to use larger ranges of at least 1000 lines when scanning through files. One call with large range is much more efficient than many calls with small ranges\n* Prefer to use grep instead of view when looking for a specific symbol in the file\n\nIMPORTANT:\n* This is the only tool you should use for editing files.\n* If it fails try your best to fix inputs and retry.\n* DO NOT fall back to removing the whole file and recreating it from scratch.\n* DO NOT use sed or any other command line tools for editing files.\n* Try to fit as many edits in one tool call as possible\n* Use view command to read the file before editing it.\n",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"command": {
-						"type": "string",
-						"enum": ["view", "str_replace", "insert"],
-						"description": "The commands to run. Allowed options are: 'view', 'str_replace', 'insert'."
-					},
-					"path": {
-						"description": "Full path to file relative to the workspace root, e.g. 'services/api_proxy/file.py' or 'services/api_proxy'.",
-						"type": "string"
-					},
-					"view_range": {
-						"description": "Optional parameter of 'view' command when 'path' points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting '[start_line, -1]' shows all lines from 'start_line' to the end of the file.",
-						"type": "array",
-						"items": {
-							"type": "integer"
-						}
-					},
-					"insert_line_entries": {
-						"description": "Required parameter of 'insert' command. A list of entries to insert. Each entry is a dictionary with keys 'insert_line' and 'new_str'.",
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"insert_line": {
-									"description": "The line number after which to insert the new string. This line number is relative to the state of the file before any insertions in the current tool call have been applied.",
-									"type": "integer"
-								},
-								"new_str": {
-									"description": "The string to insert. Can be an empty string.",
-									"type": "string"
-								}
-							},
-							"required": ["insert_line", "new_str"]
-						}
-					},
-					"str_replace_entries": {
-						"description": "Required parameter of 'str_replace' command. A list of entries to replace. Each entry is a dictionary with keys 'old_str', 'old_str_start_line_number', 'old_str_end_line_number' and 'new_str'. 'old_str' from different entries should not overlap.",
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"old_str": {
-									"description": "The string in 'path' to replace.",
-									"type": "string"
-								},
-								"old_str_start_line_number": {
-									"description": "The line number of the first line of 'old_str' in the file. This is used to disambiguate between multiple occurrences of 'old_str' in the file.",
-									"type": "integer"
-								},
-								"old_str_end_line_number": {
-									"description": "The line number of the last line of 'old_str' in the file. This is used to disambiguate between multiple occurrences of 'old_str' in the file.",
-									"type": "integer"
-								},
-								"new_str": {
-									"description": "The string to replace 'old_str' with. Can be an empty string to delete content.",
-									"type": "string"
-								}
-							},
-							"required": ["old_str", "new_str", "old_str_start_line_number", "old_str_end_line_number"]
-						}
-					}
-				},
-				"required": ["command", "path"]
-			}`,
-			ToolSafety: 1,
+			Name:            "write-process",
+			Description:     "Write input to a process's stdin.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"terminal_id\":{\"type\":\"integer\",\"description\":\"Process ID to write to.\"},\"input_text\":{\"type\":\"string\",\"description\":\"Text to write to the process's stdin.\"}},\"required\":[\"terminal_id\",\"input_text\"]}",
+			ToolSafety:      1,
 		},
 		{
-			Name:        "save-file",
-			Description: "Save a file.",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"file_path": {
-						"type": "string",
-						"description": "The path of the file to save."
-					},
-					"file_content": {
-						"type": "string",
-						"description": "The content of the file to save."
-					},
-					"add_last_line_newline": {
-						"type": "boolean",
-						"description": "Whether to add a newline at the end of the file (default: true)."
-					}
-				},
-				"required": ["file_path", "file_content"]
-			}`,
-			ToolSafety: 1,
+			Name:            "list-processes",
+			Description:     "List all known processes and their states.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{},\"required\":[]}",
+			ToolSafety:      1,
 		},
 		{
-			Name:        "launch-process",
-			Description: "Launch a new process.\nIf wait is specified, waits up to that many seconds for the process to complete.\nIf the process completes within wait seconds, returns its output.\nIf it doesn't complete within wait seconds, returns partial output and process ID.\nIf wait is not specified, returns immediately with just the process ID.\nThe process's stdin is always enbled, so you can use write_process to send input if needed.",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"command": {
-						"type": "string",
-						"description": "The shell command to execute"
-					},
-					"wait": {
-						"type": "number",
-						"description": "Optional: number of seconds to wait for the command to complete."
-					},
-					"cwd": {
-						"type": "string",
-						"description": "Working directory for the command. If not supplied, uses the current working directory."
-					}
-				},
-				"required": ["command"]
-			}`,
-			ToolSafety: 2,
+			Name:            "web-search",
+			Description:     "Search the web for information. Returns results in markdown format.\nEach result includes the URL, title, and a snippet from the page if available.\n\nThis tool uses Google's Custom Search API to find relevant web pages.",
+			InputSchemaJSON: "{\"description\": \"Input schema for the web search tool.\", \"properties\": {\"query\": {\"description\": \"The search query to send.\", \"title\": \"Query\", \"type\": \"string\"}, \"num_results\": {\"default\": 5, \"description\": \"Number of results to return\", \"maximum\": 10, \"minimum\": 1, \"title\": \"Num Results\", \"type\": \"integer\"}}, \"required\": [\"query\"], \"title\": \"WebSearchInput\", \"type\": \"object\"}",
+			ToolSafety:      0,
 		},
 		{
-			Name:        "read-process",
-			Description: "Read output from a terminal.",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"terminal_id": {
-						"type": "number",
-						"description": "Terminal ID to read from."
-					}
-				},
-				"required": ["terminal_id"]
-			}`,
-			ToolSafety: 1,
+			Name:            "web-fetch",
+			Description:     "Fetches data from a webpage and converts it into Markdown.\n\n1. The tool takes in a URL and returns the content of the page in Markdown format;\n2. If the return is not valid Markdown, it means the tool cannot successfully parse this page.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"url\":{\"type\":\"string\",\"description\":\"The URL to fetch.\"}},\"required\":[\"url\"]}",
+			ToolSafety:      0,
 		},
 		{
-			Name:        "kill-process",
-			Description: "Kill a process by its terminal ID.",
-			InputSchemaJSON: `{
-				"type": "object",
-				"properties": {
-					"terminal_id": {
-						"type": "number",
-						"description": "Terminal ID to kill."
-					}
-				},
-				"required": ["terminal_id"]
-			}`,
-			ToolSafety: 1,
+			Name:            "codebase-retrieval",
+			Description:     "This tool is Augment's context engine, the world's best codebase context engine. It:\n1. Takes in a natural language description of the code you are looking for;\n2. Uses a proprietary retrieval/embedding model suite that produces the highest-quality recall of relevant code snippets from across the codebase;\n3. Maintains a real-time index of the codebase, so the results are always up-to-date and reflects the current state of the codebase;\n4. Can retrieve across different programming languages;\n5. Only reflects the current state of the codebase on the disk, and has no information on version control or code history.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"information_request\":{\"type\":\"string\",\"description\":\"A description of the information you need.\"}},\"required\":[\"information_request\"]}",
+			ToolSafety:      1,
+		},
+		{
+			Name:            "remove-files",
+			Description:     "Remove files. ONLY use this tool to delete files in the user's workspace. This is the only safe tool to delete files in a way that the user can undo the change. Do NOT use the shell or launch-process tools to remove files.",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"file_paths\":{\"type\":\"array\",\"description\":\"The paths of the files to remove.\",\"items\":{\"type\":\"string\"}}},\"required\":[\"file_paths\"]}",
+			ToolSafety:      1,
+		},
+		{
+			Name:            "remember",
+			Description:     "Call this tool when user asks you:\n- to remember something\n- to create memory/memories\n\nUse this tool only with information that can be useful in the long-term.\nDo not use this tool for temporary information.\n",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"memory\":{\"type\":\"string\",\"description\":\"The concise (1 sentence) memory to remember.\"}},\"required\":[\"memory\"]}",
+			ToolSafety:      1,
+		},
+		{
+			Name:            "str-replace-editor",
+			Description:     "Custom editing tool for viewing, creating and editing files\n* `path` is a file path relative to the workspace root\n* command `view` displays the result of applying `cat -n`.\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`\n* `insert` and `str_replace` commands output a snippet of the edited section for each entry. This snippet reflects the final state of the file after all edits and IDE auto-formatting have been applied.\n\n\nNotes for using the `str_replace` command:\n* Use the `str_replace_entries` parameter with an array of objects\n* Each object should have `old_str`, `new_str`, `old_str_start_line_number` and `old_str_end_line_number` properties\n* The `old_str_start_line_number` and `old_str_end_line_number` parameters are 1-based line numbers\n* Both `old_str_start_line_number` and `old_str_end_line_number` are INCLUSIVE\n* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespace!\n* Empty `old_str` is allowed only when the file is empty or contains only whitespaces\n* It is important to specify `old_str_start_line_number` and `old_str_end_line_number` to disambiguate between multiple occurrences of `old_str` in the file\n* Make sure that `old_str_start_line_number` and `old_str_end_line_number` do not overlap with other entries in `str_replace_entries`\n* The `new_str` parameter should contain the edited lines that should replace the `old_str`. Can be an empty string to delete content\n\nNotes for using the `insert` command:\n* Use the `insert_line_entries` parameter with an array of objects\n* Each object should have `insert_line` and `new_str` properties\n* The `insert_line` parameter specifies the line number after which to insert the new string\n* The `insert_line` parameter is 1-based line number\n* To insert at the very beginning of the file, use `insert_line: 0`\n\nNotes for using the `view` command:\n* Strongly prefer to use larger ranges of at least 500 lines when scanning through files. One call with large range is much more efficient than many calls with small ranges\n\nIMPORTANT:\n* This is the only tool you should use for editing files.\n* If it fails try your best to fix inputs and retry.\n* DO NOT fall back to removing the whole file and recreating it from scratch.\n* DO NOT use sed or any other command line tools for editing files.\n* Try to fit as many edits in one tool call as possible\n* Use view command to read the file before editing it.\n",
+			InputSchemaJSON: "{\"type\":\"object\",\"properties\":{\"command\":{\"type\":\"string\",\"enum\":[\"view\",\"str_replace\",\"insert\"],\"description\":\"The commands to run. Allowed options are: 'view', 'str_replace', 'insert'.\"},\"path\":{\"description\":\"Full path to file relative to the workspace root, e.g. 'services/api_proxy/file.py' or 'services/api_proxy'.\",\"type\":\"string\"},\"view_range\":{\"description\":\"Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [501, 1000] will show lines from 501 to 1000. Indices are 1-based and inclusive. Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file.\",\"type\":\"array\",\"items\":{\"type\":\"integer\"}},\"insert_line_entries\":{\"description\":\"Required parameter of `insert` command. A list of entries to insert. Each entry is a dictionary with keys `insert_line` and `new_str`.\",\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"insert_line\":{\"description\":\"The line number after which to insert the new string. This line number is relative to the state of the file before any insertions in the current tool call have been applied.\",\"type\":\"integer\"},\"new_str\":{\"description\":\"The string to insert. Can be an empty string.\",\"type\":\"string\"}},\"required\":[\"insert_line\",\"new_str\"]}},\"str_replace_entries\":{\"description\":\"Required parameter of `str_replace` command. A list of entries to replace. Each entry is a dictionary with keys `old_str`, `old_str_start_line_number`, `old_str_end_line_number` and `new_str`. `old_str` from different entries should not overlap.\",\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"old_str\":{\"description\":\"The string in `path` to replace.\",\"type\":\"string\"},\"old_str_start_line_number\":{\"description\":\"The line number of the first line of `old_str` in the file. This is used to disambiguate between multiple occurrences of `old_str` in the file.\",\"type\":\"integer\"},\"old_str_end_line_number\":{\"description\":\"The line number of the last line of `old_str` in the file. This is used to disambiguate between multiple occurrences of `old_str` in the file.\",\"type\":\"integer\"},\"new_str\":{\"description\":\"The string to replace `old_str` with. Can be an empty string to delete content.\",\"type\":\"string\"}},\"required\":[\"old_str\",\"new_str\",\"old_str_start_line_number\",\"old_str_end_line_number\"]}}},\"required\":[\"command\",\"path\"]}",
+			ToolSafety:      1,
 		},
 	}
 }

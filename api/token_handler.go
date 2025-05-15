@@ -407,12 +407,29 @@ func CheckTokenTenantURL(token string) (string, error) {
 		tenantURLsToTest = append(tenantURLsToTest, currentTenantURL)
 	}
 
+	// 创建一个map来跟踪已添加的URL，避免重复
+	uniqueTenantURLs := make(map[string]bool)
+	if currentTenantURL != "" {
+		uniqueTenantURLs[currentTenantURL] = true
+	}
+
 	// 添加其他租户地址
-	for i := 20; i >= 1; i-- {
+	// 添加 d1-d20 地址
+	for i := 20; i >= 0; i-- {
 		newTenantURL := fmt.Sprintf("https://d%d.api.augmentcode.com/", i)
 		// 避免重复测试已有的租户地址
-		if newTenantURL != currentTenantURL {
+		if !uniqueTenantURLs[newTenantURL] {
 			tenantURLsToTest = append(tenantURLsToTest, newTenantURL)
+			uniqueTenantURLs[newTenantURL] = true
+		}
+	}
+
+	// 添加 i0-i5 地址
+	for i := 5; i >= 0; i-- {
+		newTenantURL := fmt.Sprintf("https://i%d.api.augmentcode.com/", i)
+		if !uniqueTenantURLs[newTenantURL] {
+			tenantURLsToTest = append(tenantURLsToTest, newTenantURL)
+			uniqueTenantURLs[newTenantURL] = true
 		}
 	}
 
