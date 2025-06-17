@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -491,6 +492,32 @@ func CheckTokenTenantURL(token string) (string, error) {
 				buf := make([]byte, 1024)
 				n, err := resp.Body.Read(buf)
 				if err == nil && n > 0 {
+					responseContent := string(buf[:n])
+
+					// 检查是否启用了REMOVE_FREE环境变量
+					if config.AppConfig.RemoveFree == "true" {
+						// 检查响应内容是否包含订阅非活动信息
+						subscriptionInactiveMsg := "Your subscription for account"
+						inactiveMsg := "is inactive"
+						updatePlanMsg := "update your plan here to continue using Augment"
+
+						if strings.Contains(responseContent, subscriptionInactiveMsg) &&
+							strings.Contains(responseContent, inactiveMsg) &&
+							strings.Contains(responseContent, updatePlanMsg) {
+							// 将token标记为不可用
+							err = config.RedisHSet(tokenKey, "status", "disabled")
+							if err != nil {
+								fmt.Printf("标记token为不可用失败: %v\n", err)
+							}
+							logger.Log.WithFields(logrus.Fields{
+								"token":         token,
+								"response_body": responseContent,
+							}).Info("token: 检测到订阅非活动状态，已被标记为不可用")
+							isInvalid = true
+							return
+						}
+					}
+
 					// 更新Redis中的租户地址和状态
 					err = config.RedisHSet(tokenKey, "tenant_url", tenantURL)
 					if err != nil {

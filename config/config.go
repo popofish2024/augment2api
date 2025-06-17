@@ -14,9 +14,10 @@ type Config struct {
 	AccessPwd       string
 	RoutePrefix     string
 	ProxyURL        string
+	RemoveFree      string
 }
 
-const version = "v1.0.6"
+const version = "v1.0.7"
 
 var AppConfig Config
 
@@ -32,7 +33,8 @@ func InitConfig() error {
 		CodingMode:  getEnv("CODING_MODE", "false"),
 		CodingToken: getEnv("CODING_TOKEN", ""),
 		TenantURL:   getEnv("TENANT_URL", ""),
-		ProxyURL:    getEnv("PROXY_URL", ""), // 代理URL配置
+		ProxyURL:    getEnv("PROXY_URL", ""),        // 代理URL配置
+		RemoveFree:  getEnv("REMOVE_FREE", "false"), // 是否移除免费账户
 	}
 
 	if AppConfig.CodingMode == "false" {
@@ -49,7 +51,6 @@ func InitConfig() error {
 		logger.Log.Fatalln("未配置环境变量 ACCESS_PWD")
 	}
 
-	// 打印欢迎信息
 	logger.Log.Info("Welcome to use Augment2Api! Current Version: " + version)
 
 	logger.Log.Info("Augment2Api配置加载完成:\n" +
@@ -59,6 +60,7 @@ func InitConfig() error {
 		"RedisConnString: " + AppConfig.RedisConnString + "\n" +
 		"RoutePrefix: " + AppConfig.RoutePrefix + "\n" +
 		"ProxyURL: " + AppConfig.ProxyURL + "\n" +
+		"RemoveFree: " + AppConfig.RemoveFree + "\n" +
 		"----------------------------------------")
 
 	logger.Log.Info("Everything is set up, now start to fully enjoy the charm of AI ！")

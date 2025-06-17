@@ -1,57 +1,87 @@
 # Augment2Api
 
-Augment2Api 是一个用于连接 Augment API 的中间层服务，提供 OpenAI 兼容的接口，支持 Claude 3.7 模型的调用。
+**English** | [中文](README_zh.md)
 
-## 使用须知
+> A middleware service for connecting to Augment API, providing OpenAI-compatible interfaces with support for Claude3.7、Claude4 model calls.
 
-- 使用本项目可能导致您的账号被标记、风控或封禁，请自行承担风险！
-- 默认根据传入模型名称确定使用使用模式，`AGENT模式`下屏蔽所有工具调用，使用模型原生能力回答，否则对话会被工具调用截断
-- 默认添加并发控制，单Token`3秒`内最多请求 `1次`,默认添加`Block Token`冷却规则
-- `Augment`的`Agent`模式很强，推荐你在编辑器中使用官方插件，体验不输`Cursor`
+[![GitHub Stars](https://img.shields.io/github/stars/linqiu919/augment2api?style=flat-square)](https://github.com/linqiu919/augment2api/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/linqiu919/augment2api?style=flat-square)](https://github.com/linqiu919/augment2api/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/linqiu919/augment2api?style=flat-square)](https://github.com/linqiu919/augment2api/issues)
+[![Docker Pulls](https://img.shields.io/docker/pulls/linqiu1199/augment2api?style=flat-square)](https://hub.docker.com/r/linqiu1199/augment2api)
 
-# 问题反馈
+## 📋 Table of Contents
 
-🐞 <a href="https://t.me/+AfGumJADbLYzYzE1" style="font-size: 15px;">Telegram交流群</a>
+- [Features](#-features)
+- [Important Notice](#-important-notice)
+- [Supported Models](#-supported-models)
+- [Environment Variables](#-environment-variables)
+- [Quick Start](#-quick-start)
+- [API Usage](#-api-usage)
+- [Admin Interface](#-admin-interface)
+- [Batch Add Tokens](#-batch-add-tokens)
+- [Feedback](#-feedback)
+- [Star History](#-star-history)
 
-## 功能特点
+## ✨ Features
 
-- 提供 OpenAI 兼容的 API 接口
-- 支持 Claude 3.7 模型(Maybe)
-- 支持流式/非流式输出 (Stream/Non-Stream)
-- 支持简洁的多Token管理界面管理
-- 支持 Redis 存储 Token
-- 支持批量检测Token和租户地址并更新
-- 支持接口批量添加Token
+- 🔄 OpenAI-compatible API interface
+- 🤖 Support for Claude-Sonnet-3.7 model(In Chat Mode),Cluade-4-Sonnet(In Agent Mode)
+- 📡 Support for streaming/non-streaming output
+- 🎛️ Simple multi-token management interface
+- 🗄️ Redis-based token storage
+- 🔍 Batch token and tenant URL detection and updates
+- 📥 API for batch token addition
 
-## 支持模型
+## ⚠️ Important Notice
+
+> **Risk Warning**: Using this project may result in your account being flagged, restricted, or banned. Use at your own risk!
+
+- The system determines the usage mode based on the input model name. In `AGENT mode`, all tool calls are blocked, using the model's native capabilities to respond, otherwise conversations may be interrupted by tool calls
+- Default concurrency control is applied, limiting each token to a maximum of `1 request every 3 seconds`, with default `Block Token` cooldown rules
+- Augment's `Agent` mode is very powerful. We recommend using the official plugin in your editor for an experience comparable to `Cursor`
+
+## 🤖 Supported Models
+
 ```bash
-传入模型名称以 -chat 结尾,使用CHAT模式回复
+Model names ending with -chat use CHAT mode for responses
 
-传入模型名称以 -agent 结尾,使用AGENT模式回复
+Model names ending with -agent use AGENT mode for responses  
 
-其他模型名称默认使用CHAT模式
+Other model names default to CHAT mode
 ```
 
-## 环境变量配置
+## 🔧 Environment Variables
 
-| 环境变量              | 说明             | 是否必填 | 示例                                        |
-|-------------------|----------------|------|-------------------------------------------|
-| REDIS_CONN_STRING | Redis 连接字符串    | 是    | `redis://default:password@localhost:6379` |
-| ACCESS_PWD        | 管理面板访问密码       | 是    | `your-access-password`                    |
-| AUTH_TOKEN        | API 访问认证 Token | 否    | `your-auth-token`                         |
-| ROUTE_PREFIX      | API 请求前缀       | 否    | `your_api_prefix`                         |
-| CODING_MODE       | 调试模式开关         | 否    | `false`                                   |
-| CODING_TOKEN      | 调试使用Token      | 否    | `空`                                       |
-| TENANT_URL        | 调试使用租户地址       | 否    | `空`                                       |
-| PROXY_URL         | HTTP代理地址       | 否    | `http://127.0.0.1:7890`                   |
+| Variable          | Description                    | Required | Example                                     |
+|-------------------|--------------------------------|----------|---------------------------------------------|
+| REDIS_CONN_STRING | Redis connection string        | ✅ Yes    | `redis://default:password@localhost:6379`  |
+| ACCESS_PWD        | Admin panel access password    | ✅ Yes    | `your-access-password`                      |
+| AUTH_TOKEN        | API access authentication token| ❌ No     | `your-auth-token`                          |
+| ROUTE_PREFIX      | API request prefix             | ❌ No     | `your_api_prefix`                          |
+| CODING_MODE       | Debug mode switch              | ❌ No     | `false`                                    |
+| CODING_TOKEN      | Debug token                    | ❌ No     | `empty`                                    |
+| TENANT_URL        | Debug tenant URL               | ❌ No     | `empty`                                    |
+| PROXY_URL         | HTTP proxy address             | ❌ No     | `http://127.0.0.1:7890`                   |
+| REMOVE_FREE       | Remove free accounts switch    | ❌ No     | `false`                                    |
 
-提示：如果页面获取Token失败，可以配置`CODING_MODE`为true,同时配置`CODING_TOKEN`和`TENANT_URL`即可使用指定Token和租户地址，仅限单个Token
+> **Tip**: If the page fails to get tokens, you can set `CODING_MODE=true` and configure `CODING_TOKEN` and `TENANT_URL` to use a specific token and tenant URL (limited to single token usage).
 
-## 快速开始
+### REMOVE_FREE Environment Variable
 
-### 1. 部署
+Since Augment doesn't automatically switch to Free plan after trial ends, causing conversations to respond with plan switching prompts, if you need to automatically remove these accounts, you can set `REMOVE_FREE=true`. The system will automatically identify and disable free accounts during batch detection.
 
-#### 使用 Docker 运行
+If the response contains the following content:
+- "Your subscription for account"
+- "is inactive"  
+- "update your plan here to continue using Augment"
+
+The token will be automatically marked as unavailable and will not participate in subsequent API call allocations.
+
+This helps improve API success rates and stability, avoiding request failures due to free account limitations.
+
+## 🚀 Quick Start
+
+### Option 1: Using Docker
 
 ```bash
 docker run -d \
@@ -64,126 +94,136 @@ docker run -d \
   linqiu1199/augment2api
 ```
 
-#### 使用 Docker Compose 运行
+### Option 2: Using Docker Compose
 
-拉取项目到本地
-
+1. **Clone the project**
 ```bash
 git clone https://github.com/linqiu1199/augment2api.git
-```
-
-进入项目目录
-
-```bash
 cd augment2api
 ```
 
-创建 `.env` 文件，填写下面两个环境变量：
+2. **Configure environment variables**
 
-```
-# 设置Redis密码 必填
+Create a `.env` file:
+
+```env
+# Set Redis password (required)
 REDIS_PASSWORD=your-redis-password
 
-# 设置面板访问密码 必填
+# Set admin panel access password (required)
 ACCESS_PWD=your-access-password
 
-# 设置api鉴权token 非必填
+# Set api authentication token (optional)
 AUTH_TOKEN=your-auth-token
-
 ```
 
-然后运行：
-
+3. **Start services**
 ```bash
 docker-compose up -d
 ```
 
-这将同时启动 Redis 和 Augment2Api 服务，并自动处理它们之间的网络连接。
+This will start both Redis and Augment2Api services and automatically handle network connections between them.
 
-### 2. 获取Token
+### Getting Tokens
 
+1. Visit `http://ip:27080/` to access the admin login page, enter your access password to enter the admin panel
+2. Click the `Add TOKEN` menu
 
-访问 `http://ip:27080/` 进入管理页面登录页,输入访问密码进入管理面板，点击`添加TOENN`菜单
-<img width="1576" alt="image" src="https://img.imgdd.com/d3c389de-c894-4c1a-9b2e-2bc1c28b0f03.png" />
+<img width="1576" alt="Admin Interface" src="https://img.imgdd.com/d3c389de-c894-4c1a-9b2e-2bc1c28b0f03.png" />
 
-1. 点击获取授权链接
-2. 复制授权链接到浏览器中打开
-3. 使用邮箱进行登录（域名邮箱也可）
-4. 复制`augment code`到授权响应输入框中，点击获取token，TOKEN列表中正常出现数据
-<img width="1576" alt="image" src="https://img.imgdd.com/8d7949fe-e9ee-41ad-bebd-2e56e8c7737f.png" />
-5. 开始对话测试
+3. Follow these steps to get tokens:
+   - Click to get authorization link
+   - Copy the authorization link and open it in browser
+   - Login with email (domain email also works)
+   - Copy the `augment code` to the authorization response input box, click get token
+   - Token should appear normally in the TOKEN list
 
-提示：
+<img width="1576" alt="Get Token" src="https://img.imgdd.com/8d7949fe-e9ee-41ad-bebd-2e56e8c7737f.png" />
 
-* 如果对话报错503，请执行一次`批量检测`更新租户地址再进行对话测试（租户地址错误）
-* 如果对话报错401，请执行一次`批量检测`禁用无效token再进行对话测试 （账号被封禁）
+4. Start conversation testing
 
-## API 使用
+> **Tips**:
+> - If conversation returns 503 error, run `batch detection` once to update tenant URLs before testing conversations (tenant URL error)
+> - If conversation returns 401 error, run `batch detection` once to disable invalid tokens before testing conversations (account banned)
 
-### 获取模型
+## 📖 API Usage
+
+### Get Model List
 
 ```bash
 curl -X GET http://localhost:27080/v1/models
 ```
 
-### 聊天接口
+### Chat Interface
 
 ```bash
 curl -X POST http://localhost:27080/v1/chat/completions \
 -H "Content-Type: application/json" \
 -d '{
-"model": "claude-3.7",
-"messages": [
-{"role": "user", "content": "你好，请介绍一下自己"}
-]
+  "model": "claude-3.7",
+  "messages": [
+    {"role": "user", "content": "Hello, please introduce yourself"}
+  ]
 }'
 ```
 
-## 管理界面
+## 🎛️ Admin Interface
 
-访问 `http://localhost:27080/` 可以打开管理界面登录页面，登录之后即可交互式获取、管理Token。
+Visit `http://localhost:27080/` to open the admin login page. After logging in, you can interactively get and manage tokens.
 
-## 批量添加Token
+## 📥 Batch Add Tokens
+
+### Without AUTH_TOKEN set
 
 ```bash
-# 批量添加Token-未设置AUTH_TOKEN
 curl -X POST http://localhost:27080/api/add/tokens \
 -H "Content-Type: application/json" \
 -d '[
-    {
-        "token": "token1",
-        "tenantUrl": "https://tenant1.com"
-    },
-    {
-        "token": "token2",
-        "tenantUrl": "https://tenant2.com"
-    }
+  {
+    "token": "token1",
+    "tenantUrl": "https://tenant1.com"
+  },
+  {
+    "token": "token2",
+    "tenantUrl": "https://tenant2.com"
+  }
 ]'
 ```
 
+### With AUTH_TOKEN set
+
 ```bash   
-# 批量添加Token-设置AUTH_TOKEN
 curl -X POST http://localhost:27080/api/add/tokens \
 -H "Content-Type: application/json" \
 -H "Authorization: Bearer your-auth-token" \
 -d '[
-    {
-        "token": "token1",
-        "tenantUrl": "https://tenant1.com"
-    },
-    {
-        "token": "token2",
-        "tenantUrl": "https://tenant2.com"
-    }
+  {
+    "token": "token1",
+    "tenantUrl": "https://tenant1.com"
+  },
+  {
+    "token": "token2",
+    "tenantUrl": "https://tenant2.com"
+  }
 ]'    
 ```
 
-## Star History
+## 💬 Feedback
 
-<a href="https://www.star-history.com/#linqiu919/augment2api&Date">
+🐞 [Telegram Group](https://t.me/+AfGumJADbLYzYzE1)
+
+## 📈 Star History
+
+<a href="https://www.star-history.com/#linqiu1199/augment2api&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=linqiu919/augment2api&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=linqiu919/augment2api&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=linqiu919/augment2api&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=linqiu1199/augment2api&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=linqiu1199/augment2api&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=linqiu1199/augment2api&type=Date" />
  </picture>
 </a>
+
+---
+
+<div align="center">
+  <strong>If this project helps you, please give us a ⭐ Star!</strong>
+</div>
