@@ -216,9 +216,9 @@ curl -X POST http://localhost:27080/api/add/tokens \
 
 <a href="https://www.star-history.com/#linqiu1199/augment2api&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=linqiu1199/augment2api&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=linqiu1199/augment2api&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=linqiu1199/augment2api&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=linqiu919/augment2api&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=linqiu919/augment2api&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=linqiu919/augment2api&type=Date" />
  </picture>
 </a>
 
