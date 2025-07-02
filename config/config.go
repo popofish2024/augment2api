@@ -17,7 +17,7 @@ type Config struct {
 	RemoveFree      string
 }
 
-const version = "v1.0.7"
+const version = "v1.0.8"
 
 var AppConfig Config
 

@@ -487,7 +487,7 @@ func CheckTokenTenantURL(token string) (string, error) {
 			}
 
 			// 检查响应状态
-			if resp.StatusCode == http.StatusOK {
+			if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPaymentRequired {
 				// 尝试读取一小部分响应以确认是否有效
 				buf := make([]byte, 1024)
 				n, err := resp.Body.Read(buf)
@@ -499,11 +499,9 @@ func CheckTokenTenantURL(token string) (string, error) {
 						// 检查响应内容是否包含订阅非活动信息
 						subscriptionInactiveMsg := "Your subscription for account"
 						inactiveMsg := "is inactive"
-						updatePlanMsg := "update your plan here to continue using Augment"
 
 						if strings.Contains(responseContent, subscriptionInactiveMsg) &&
-							strings.Contains(responseContent, inactiveMsg) &&
-							strings.Contains(responseContent, updatePlanMsg) {
+							strings.Contains(responseContent, inactiveMsg) {
 							// 将token标记为不可用
 							err = config.RedisHSet(tokenKey, "status", "disabled")
 							if err != nil {
