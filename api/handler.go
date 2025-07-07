@@ -212,7 +212,7 @@ func GetAuthInfo() (string, string) {
 
 const (
 	// 默认提示，不加这个会导致Agent触发文件创建，回复截断
-	defaultPrompt = "Your are claude3.7, All replies cannot create, modify, or delete files, and must provide content directly!"
+	defaultPrompt = "Your are claude4, All replies cannot create, modify, or delete files, and must provide content directly!"
 	// 默认上下文，影响模型回复风格
 	defaultPrefix = "You are AI assistant,help me to solve problems!"
 )
@@ -389,7 +389,6 @@ func detectLanguage(req OpenAIRequest) string {
 }
 
 // getFullToolDefinitions 返回官方定义的完整工具定义列表
-// TODO 验证实际作用
 func getFullToolDefinitions() []ToolDefinition {
 	return []ToolDefinition{
 		{
@@ -638,26 +637,34 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(jsonData)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "augment.intellij/0.184.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5")
+	req.Header.Set("User-Agent", config.AppConfig.UserAgent)
 	req.Header.Set("x-api-version", "2")
 
-	// 生成请求ID和会话ID
+	// 生成请求ID
 	requestID := uuid.New().String()
-	sessionID := uuid.New().String()
 	req.Header.Set("x-request-id", requestID)
+
+	// 从context中获取session_id
+	sessionIDInterface, exists := c.Get("session_id")
+	var sessionID string
+	if !exists {
+		// 使用随机session-id
+		sessionID = uuid.New().String()
+		logger.Log.WithFields(logrus.Fields{
+			"token": token,
+		}).Warn("context中未找到session_id，使用随机session-id")
+	} else {
+		sessionID = sessionIDInterface.(string)
+	}
 	req.Header.Set("x-request-session-id", sessionID)
 
-	// 使用createHTTPClient创建客户端
 	client := createHTTPClient()
-
-	// 设置刷新器以确保数据立即发送
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "流式传输不支持"})
 		return
 	}
 
-	// 第一次尝试使用原始模式请求
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Log.WithFields(logrus.Fields{
@@ -689,7 +696,7 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(jsonData)))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("User-Agent", "augment.intellij/0.184.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5")
+		req.Header.Set("User-Agent", config.AppConfig.UserAgent)
 		req.Header.Set("x-api-version", "2")
 		req.Header.Set("x-request-id", requestID)
 		req.Header.Set("x-request-session-id", sessionID)
@@ -717,7 +724,6 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 	// 异步记录会话事件
 	asyncRecordSessionEvent(token, tenant, requestID, sessionID)
 
-	// 读取并转发响应
 	reader := bufio.NewReader(resp.Body)
 	responseID := fmt.Sprintf("chatcmpl-%d", time.Now().Unix())
 
@@ -765,7 +771,7 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 				req.Header.Set("Content-Length", fmt.Sprintf("%d", len(jsonData)))
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Authorization", "Bearer "+token)
-				req.Header.Set("User-Agent", "augment.intellij/0.184.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5")
+				req.Header.Set("User-Agent", config.AppConfig.UserAgent)
 				req.Header.Set("x-api-version", "2")
 				req.Header.Set("x-request-id", requestID)
 				req.Header.Set("x-request-session-id", sessionID)
@@ -902,7 +908,7 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(jsonData)))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("User-Agent", "augment.intellij/0.184.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5")
+		req.Header.Set("User-Agent", config.AppConfig.UserAgent)
 		req.Header.Set("x-api-version", "2")
 		req.Header.Set("x-request-id", requestID)
 		req.Header.Set("x-request-session-id", sessionID)
@@ -1066,7 +1072,7 @@ func handleNonStreamRequest(c *gin.Context, augmentReq AugmentRequest, model str
 		return
 	}
 
-	// 提取主机部分
+	// 提取租户地址
 	parsedURL, err := url.Parse(tenant)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "解析租户URL失败"})
@@ -1074,7 +1080,6 @@ func handleNonStreamRequest(c *gin.Context, augmentReq AugmentRequest, model str
 	}
 	hostName := parsedURL.Host
 
-	// 创建请求
 	requestURL := tenant + "chat-stream"
 	req, err := http.NewRequest("POST", requestURL, bytes.NewReader(jsonData))
 	if err != nil {
@@ -1087,13 +1092,24 @@ func handleNonStreamRequest(c *gin.Context, augmentReq AugmentRequest, model str
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(jsonData)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "augment.intellij/0.184.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5")
+	req.Header.Set("User-Agent", config.AppConfig.UserAgent)
 	req.Header.Set("x-api-version", "2")
 
-	// 生成请求ID和会话ID
+	// 生成请求ID
 	requestID := uuid.New().String()
-	sessionID := uuid.New().String()
 	req.Header.Set("x-request-id", requestID)
+
+	sessionIDInterface, exists := c.Get("session_id")
+	var sessionID string
+	if !exists {
+		// 使用随机session-id
+		sessionID = uuid.New().String()
+		logger.Log.WithFields(logrus.Fields{
+			"token": token,
+		}).Warn("context中未找到session_id，使用随机session-id")
+	} else {
+		sessionID = sessionIDInterface.(string)
+	}
 	req.Header.Set("x-request-session-id", sessionID)
 
 	client := createHTTPClient()
@@ -1333,7 +1349,7 @@ func asyncRecordSessionEvent(token, tenantURL, requestID, sessionID string) {
 		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(jsonData)))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("User-Agent", "augment.intellij/0.184.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5")
+		req.Header.Set("User-Agent", config.AppConfig.UserAgent)
 		req.Header.Set("x-api-version", "2")
 		req.Header.Set("x-request-id", requestID)
 		req.Header.Set("x-request-session-id", sessionID)
@@ -1378,13 +1394,12 @@ func incrementTokenUsage(token string, model string) {
 		}
 	}
 
-	// 使用Redis的INCR命令增加计数
 	err := config.RedisIncr(countKey)
 	if err != nil {
 		logger.Log.Error("增加token使用计数失败: %v", err)
 	}
 
-	// 同时增加总使用计数
+	// 增加总使用计数
 	totalCountKey := "token_usage:" + token
 	if countKey != totalCountKey { // 避免重复计数
 		err = config.RedisIncr(totalCountKey)

@@ -265,10 +265,10 @@ func main() {
 		logger.Log.Fatalln("failed to initialize Redis: " + err.Error())
 	}
 
-	// token备注字段迁移
-	err = api.MigrateTokensRemark()
+	// token session_id字段迁移
+	err = api.MigrateTokensSessionID()
 	if err != nil {
-		logger.Log.Error("Token备注字段迁移失败: %v", err)
+		logger.Log.Error("Token session_id字段迁移失败: %v", err)
 	}
 
 	// 启动token使用次数重置调度器

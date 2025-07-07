@@ -52,7 +52,7 @@ func TokenConcurrencyMiddleware() gin.HandlerFunc {
 		}
 
 		// 获取一个可用的token
-		token, tenantURL := api.GetAvailableToken()
+		token, tenantURL, sessionID := api.GetAvailableToken()
 		if token == "No token" {
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "当前无可用token，请在页面添加"})
 			c.Abort()
@@ -84,13 +84,15 @@ func TokenConcurrencyMiddleware() gin.HandlerFunc {
 		}
 
 		logger.Log.WithFields(logrus.Fields{
-			"token": token,
+			"token":      token,
+			"session_id": sessionID,
 		}).Info("本次请求使用的token: ")
 
 		// 在请求完成后释放锁
 		c.Set("token_lock", lock)
 		c.Set("token", token)
 		c.Set("tenant_url", tenantURL)
+		c.Set("session_id", sessionID)
 
 		c.Next()
 	}

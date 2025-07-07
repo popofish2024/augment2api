@@ -15,9 +15,10 @@ type Config struct {
 	RoutePrefix     string
 	ProxyURL        string
 	RemoveFree      string
+	UserAgent       string
 }
 
-const version = "v1.0.8"
+const version = "v1.0.9"
 
 var AppConfig Config
 
@@ -35,6 +36,7 @@ func InitConfig() error {
 		TenantURL:   getEnv("TENANT_URL", ""),
 		ProxyURL:    getEnv("PROXY_URL", ""),        // 代理URL配置
 		RemoveFree:  getEnv("REMOVE_FREE", "false"), // 是否移除免费账户
+		UserAgent:   getEnv("USER_AGENT", "Augment.vscode-augment/0.492.0 (darwin; arm64; 24.2.0) vscode/1.98.2"),
 	}
 
 	if AppConfig.CodingMode == "false" {

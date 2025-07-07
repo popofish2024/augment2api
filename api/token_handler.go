@@ -25,6 +25,7 @@ import (
 type TokenInfo struct {
 	Token           string    `json:"token"`
 	TenantURL       string    `json:"tenant_url"`
+	SessionID       string    `json:"session_id"`         // 绑定的会话ID
 	UsageCount      int       `json:"usage_count"`        // 总对话次数
 	ChatUsageCount  int       `json:"chat_usage_count"`   // CHAT模式对话次数
 	AgentUsageCount int       `json:"agent_usage_count"`  // AGENT模式对话次数
@@ -129,6 +130,9 @@ func GetRedisTokenHandler(c *gin.Context) {
 			// 获取备注信息
 			remark := fields["remark"]
 
+			// 获取session_id信息
+			sessionID := fields["session_id"]
+
 			// 获取token的冷却状态 (异步获取)
 			coolStatus, _ := GetTokenCoolStatus(tokenValue)
 
@@ -141,6 +145,7 @@ func GetRedisTokenHandler(c *gin.Context) {
 			tokenListChan <- TokenInfo{
 				Token:           tokenValue,
 				TenantURL:       tenantURL,
+				SessionID:       sessionID,
 				UsageCount:      totalCount,
 				ChatUsageCount:  chatCount,
 				AgentUsageCount: agentCount,
@@ -220,6 +225,13 @@ func SaveTokenToRedis(token, tenantURL string) error {
 
 	// 将tenant_url存储在token对应的哈希表中
 	err = config.RedisHSet(tokenKey, "tenant_url", tenantURL)
+	if err != nil {
+		return err
+	}
+
+	// 生成并存储session_id
+	sessionID := uuid.New().String()
+	err = config.RedisHSet(tokenKey, "session_id", sessionID)
 	if err != nil {
 		return err
 	}
@@ -369,7 +381,7 @@ func AddTokenHandler(c *gin.Context) {
 }
 
 // CheckTokenTenantURL 检测token的租户地址
-func CheckTokenTenantURL(token string) (string, error) {
+func CheckTokenTenantURL(token string, sessionID string) (string, error) {
 	// 构建测试消息
 	testMsg := map[string]interface{}{
 		"message":              "hello，what is your name",
@@ -444,10 +456,10 @@ func CheckTokenTenantURL(token string) (string, error) {
 
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("User-Agent", "augment.intellij/0.160.0 (Mac OS X; aarch64; 15.2) WebStorm/2024.3.5")
+		req.Header.Set("User-Agent", config.AppConfig.UserAgent)
 		req.Header.Set("x-api-version", "2")
 		req.Header.Set("x-request-id", uuid.New().String())
-		req.Header.Set("x-request-session-id", uuid.New().String())
+		req.Header.Set("x-request-session-id", sessionID)
 
 		client := createHTTPClient()
 		resp, err := client.Do(req)
@@ -601,8 +613,14 @@ func CheckAllTokensHandler(c *gin.Context) {
 			// 获取当前的租户地址
 			oldTenantURL, _ := config.RedisHGet(key, "tenant_url")
 
+			// 获取token的session_id，如果没有则生成一个临时的
+			sessionID, err := config.RedisHGet(key, "session_id")
+			if err != nil {
+				sessionID = uuid.New().String()
+			}
+
 			// 检测租户地址
-			newTenantURL, err := CheckTokenTenantURL(token)
+			newTenantURL, err := CheckTokenTenantURL(token, sessionID)
 			logger.Log.WithFields(logrus.Fields{
 				"token":          token,
 				"old_tenant_url": oldTenantURL,
@@ -721,19 +739,21 @@ func GetTokenCoolStatus(token string) (TokenCoolStatus, error) {
 	return coolStatus, nil
 }
 
-// GetAvailableToken 获取一个可用的token（未在使用中且冷却时间已过）
-func GetAvailableToken() (string, string) {
+// GetAvailableToken 获取一个可用的token（未在使用中且冷却时间已过），同时返回token、tenant_url和session_id
+func GetAvailableToken() (string, string, string) {
 	// 获取所有token的key
 	keys, err := config.RedisKeys("token:*")
 	if err != nil || len(keys) == 0 {
-		return "No token", ""
+		return "No token", "", ""
 	}
 
 	// 筛选可用的token
 	var availableTokens []string
 	var availableTenantURLs []string
+	var availableSessionIDs []string
 	var cooldownTokens []string
 	var cooldownTenantURLs []string
+	var cooldownSessionIDs []string
 
 	for _, key := range keys {
 		// 获取token状态
@@ -781,6 +801,14 @@ func GetAvailableToken() (string, string) {
 			continue
 		}
 
+		// 获取对应的session_id
+		sessionID, err := config.RedisHGet(key, "session_id")
+		if err != nil {
+			// 如果没有session_id，生成一个新的
+			sessionID = uuid.New().String()
+			config.RedisHSet(key, "session_id", sessionID)
+		}
+
 		// 检查token是否在冷却中
 		coolStatus, err := GetTokenCoolStatus(token)
 		if err != nil {
@@ -791,10 +819,12 @@ func GetAvailableToken() (string, string) {
 		if coolStatus.InCool {
 			cooldownTokens = append(cooldownTokens, token)
 			cooldownTenantURLs = append(cooldownTenantURLs, tenantURL)
+			cooldownSessionIDs = append(cooldownSessionIDs, sessionID)
 		} else {
 			// 否则放入可用队列
 			availableTokens = append(availableTokens, token)
 			availableTenantURLs = append(availableTenantURLs, tenantURL)
+			availableSessionIDs = append(availableSessionIDs, sessionID)
 		}
 	}
 
@@ -802,36 +832,18 @@ func GetAvailableToken() (string, string) {
 	if len(availableTokens) > 0 {
 		// 随机选择一个token
 		randomIndex := rand.Intn(len(availableTokens))
-		return availableTokens[randomIndex], availableTenantURLs[randomIndex]
+		return availableTokens[randomIndex], availableTenantURLs[randomIndex], availableSessionIDs[randomIndex]
 	}
 
 	// 如果没有非冷却token可用，则从冷却队列中选择
 	if len(cooldownTokens) > 0 {
 		// 随机选择一个token
 		randomIndex := rand.Intn(len(cooldownTokens))
-		return cooldownTokens[randomIndex], cooldownTenantURLs[randomIndex]
+		return cooldownTokens[randomIndex], cooldownTenantURLs[randomIndex], cooldownSessionIDs[randomIndex]
 	}
 
 	// 如果没有任何可用的token
-	return "No available token", ""
-}
-
-// getTokenUsageCount 获取token的使用次数
-func getTokenUsageCount(token string) int {
-	// 使用Redis中的计数器获取使用次数
-	countKey := "token_usage:" + token
-	count, err := config.RedisGet(countKey)
-	if err != nil {
-		return 0 // 如果出错或不存在，返回0
-	}
-
-	// 将字符串转换为整数
-	countInt, err := strconv.Atoi(count)
-	if err != nil {
-		return 0
-	}
-
-	return countInt
+	return "No available token", "", ""
 }
 
 // getTokenChatUsageCount 获取token的CHAT模式使用次数
@@ -842,8 +854,6 @@ func getTokenChatUsageCount(token string) int {
 	if err != nil {
 		return 0 // 如果出错或不存在，返回0
 	}
-
-	// 将字符串转换为整数
 	countInt, err := strconv.Atoi(count)
 	if err != nil {
 		return 0
@@ -860,8 +870,6 @@ func getTokenAgentUsageCount(token string) int {
 	if err != nil {
 		return 0 // 如果出错或不存在，返回0
 	}
-
-	// 将字符串转换为整数
 	countInt, err := strconv.Atoi(count)
 	if err != nil {
 		return 0
@@ -927,8 +935,8 @@ func UpdateTokenRemark(c *gin.Context) {
 	})
 }
 
-// MigrateTokensRemark 确保所有token都有remark字段
-func MigrateTokensRemark() error {
+// MigrateTokensSessionID 确保所有token都有session_id字段
+func MigrateTokensSessionID() error {
 	// 获取所有token的key
 	keys, err := config.RedisKeys("token:*")
 	if err != nil {
@@ -936,24 +944,31 @@ func MigrateTokensRemark() error {
 	}
 
 	for _, key := range keys {
-		// 检查是否已有remark字段
-		exists, err := config.RedisHExists(key, "remark")
+		// 检查token状态，跳过不可用的token
+		status, err := config.RedisHGet(key, "status")
+		if err == nil && status == "disabled" {
+			continue // 跳过被标记为不可用的token
+		}
+
+		// 检查是否已有session_id字段
+		exists, err := config.RedisHExists(key, "session_id")
 		if err != nil {
-			logger.Log.Error("check remark field of token %s failed: %v", key, err)
+			logger.Log.Error("check session_id field of token %s failed: %v", key, err)
 			continue
 		}
 
-		// 如果没有remark字段，添加一个空的remark
+		// 如果没有session_id字段，生成一个新的session_id
 		if !exists {
-			err = config.RedisHSet(key, "remark", "")
+			sessionID := uuid.New().String()
+			err = config.RedisHSet(key, "session_id", sessionID)
 			if err != nil {
-				logger.Log.Error("add remark field to token %s failed: %v", key, err)
+				logger.Log.Error("add session_id field to token %s failed: %v", key, err)
 				continue
 			}
-			logger.Log.Info("add remark field to token %s success", key)
+			logger.Log.Info("add session_id field to token %s success", key)
 		}
 	}
-	logger.Log.Info("migrate remark field to all tokens success!")
+	logger.Log.Info("migrate session_id field to all tokens success!")
 
 	return nil
 }
