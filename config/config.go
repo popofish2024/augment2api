@@ -34,8 +34,8 @@ func InitConfig() error {
 		CodingMode:  getEnv("CODING_MODE", "false"),
 		CodingToken: getEnv("CODING_TOKEN", ""),
 		TenantURL:   getEnv("TENANT_URL", ""),
-		ProxyURL:    getEnv("PROXY_URL", ""),        // 代理URL配置
-		RemoveFree:  getEnv("REMOVE_FREE", "false"), // 是否移除免费账户
+		ProxyURL:    getEnv("PROXY_URL", ""),       // 代理URL配置
+		RemoveFree:  getEnv("REMOVE_FREE", "true"), // 是否移除免费账户
 		UserAgent:   getEnv("USER_AGENT", "Augment.vscode-augment/0.492.0 (darwin; arm64; 24.2.0) vscode/1.98.2"),
 	}
 

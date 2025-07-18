@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -227,16 +226,6 @@ func generateCheckpointID() string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-// generatePath 生成一个随机文件路径（暂时无用）
-func generatePath() string {
-	extensions := []string{".txt", ".md", ".go", ".py", ".js", ".html", ".css"}
-	dirs := []string{"src", "docs", "test", "lib", "utils"}
-	dir := dirs[rand.Intn(len(dirs))]
-	ext := extensions[rand.Intn(len(extensions))]
-	filename := fmt.Sprintf("%x", rand.Int31())
-	return fmt.Sprintf("%s/%s%s", dir, filename, ext)
-}
-
 // convertToAugmentRequest 将OpenAI请求转换为Augment请求
 func convertToAugmentRequest(req OpenAIRequest) AugmentRequest {
 	// 确定模式和其他参数基于模型名称
@@ -255,7 +244,7 @@ func convertToAugmentRequest(req OpenAIRequest) AugmentRequest {
 	} else if strings.HasSuffix(modelLower, "-agent") {
 		// 使用AGENT模式
 		mode = "AGENT"
-		userGuideLines = "Answer in Chinese, do not use any tools, and for questions involving internet searches, please answer based on your existing knowledge."
+		userGuideLines = "must answer in Chinese, do not use tools, and for questions involving internet searches, please answer based on your existing knowledge."
 		includeToolDefinitions = true
 		includeDefaultPrompt = true
 	}
@@ -721,9 +710,6 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 		return
 	}
 
-	// 异步记录会话事件
-	asyncRecordSessionEvent(token, tenant, requestID, sessionID)
-
 	reader := bufio.NewReader(resp.Body)
 	responseID := fmt.Sprintf("chatcmpl-%d", time.Now().Unix())
 
@@ -749,7 +735,7 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 				}).Info("切换到CHAT模式")
 
 				augmentReq.Mode = "CHAT"
-				augmentReq.UserGuideLines = "使用中文回答"
+				augmentReq.UserGuideLines = "You must answer in Chinese."
 				augmentReq.ToolDefinitions = []ToolDefinition{}
 
 				// 重新准备请求数据
@@ -931,9 +917,6 @@ func handleStreamRequest(c *gin.Context, augmentReq AugmentRequest, model string
 			c.JSON(resp.StatusCode, gin.H{"error": errMsg})
 			return
 		}
-
-		// 异步记录会话事件
-		asyncRecordSessionEvent(token, tenant, requestID, sessionID)
 
 		// 读取并转发响应
 		reader = bufio.NewReader(resp.Body)
@@ -1131,9 +1114,6 @@ func handleNonStreamRequest(c *gin.Context, augmentReq AugmentRequest, model str
 		return
 	}
 
-	// 异步记录会话事件
-	asyncRecordSessionEvent(token, tenant, requestID, sessionID)
-
 	// 读取完整响应
 	reader := bufio.NewReader(resp.Body)
 	var fullText string
@@ -1285,93 +1265,6 @@ func createHTTPClient() *http.Client {
 	}
 
 	return client
-}
-
-// 异步记录用户会话事件
-func asyncRecordSessionEvent(token, tenantURL, requestID, sessionID string) {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logger.Log.WithFields(logrus.Fields{
-					"error":      r,
-					"token":      token,
-					"tenant_url": tenantURL,
-				}).Error("记录会话事件时发生panic")
-			}
-		}()
-
-		// 提取主机部分
-		parsedURL, err := url.Parse(tenantURL)
-		if err != nil {
-			logger.Log.WithFields(logrus.Fields{
-				"error":      err.Error(),
-				"tenant_url": tenantURL,
-			}).Error("解析租户URL失败")
-			return
-		}
-		hostName := parsedURL.Host
-
-		// 构建事件数据
-		currentTime := time.Now()
-		eventData := map[string]interface{}{
-			"events": []map[string]interface{}{
-				{
-					"event_name":      "used-chat",
-					"event_time_sec":  currentTime.Unix(),
-					"event_time_nsec": currentTime.UnixNano() % 1000000000,
-				},
-			},
-		}
-
-		// 序列化请求数据
-		jsonData, err := json.Marshal(eventData)
-		if err != nil {
-			logger.Log.WithFields(logrus.Fields{
-				"error": err.Error(),
-			}).Error("序列化事件数据失败")
-			return
-		}
-
-		// 构建请求URL
-		requestURL := tenantURL + "record-onboarding-session-event"
-
-		// 创建请求
-		req, err := http.NewRequest("POST", requestURL, bytes.NewReader(jsonData))
-		if err != nil {
-			logger.Log.WithFields(logrus.Fields{
-				"error": err.Error(),
-			}).Error("创建记录事件请求失败")
-			return
-		}
-
-		// 设置请求头
-		req.Header.Set("Host", hostName)
-		req.Header.Set("Content-Length", fmt.Sprintf("%d", len(jsonData)))
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("User-Agent", config.AppConfig.UserAgent)
-		req.Header.Set("x-api-version", "2")
-		req.Header.Set("x-request-id", requestID)
-		req.Header.Set("x-request-session-id", sessionID)
-		req.Header.Set("Accept-Charset", "UTF-8")
-
-		// 发送请求
-		client := createHTTPClient()
-		resp, err := client.Do(req)
-		if err != nil {
-			logger.Log.WithFields(logrus.Fields{
-				"error": err.Error(),
-			}).Error("发送记录事件请求失败")
-			return
-		}
-		defer resp.Body.Close()
-
-		// 记录响应状态
-		logger.Log.WithFields(logrus.Fields{
-			"status_code": resp.StatusCode,
-			"tenant_url":  tenantURL,
-		}).Info("记录会话事件完成")
-	}()
 }
 
 // 在处理聊天请求时增加token使用计数

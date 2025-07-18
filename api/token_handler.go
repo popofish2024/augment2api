@@ -509,11 +509,16 @@ func CheckTokenTenantURL(token string, sessionID string) (string, error) {
 					// 检查是否启用了REMOVE_FREE环境变量
 					if config.AppConfig.RemoveFree == "true" {
 						// 检查响应内容是否包含订阅非活动信息
-						subscriptionInactiveMsg := "Your subscription for account"
-						inactiveMsg := "is inactive"
+						const (
+							subscriptionInactiveMsg = "Your subscription for account"
+							inactiveMsg             = "is inactive"
+							suspendedMsg            = "has been suspended. To continue, [purchase a subscription](https://app.augmentcode.com/account)"
+							outOfMessagesMsg        = "You are out of user messages for account"
+						)
 
-						if strings.Contains(responseContent, subscriptionInactiveMsg) &&
-							strings.Contains(responseContent, inactiveMsg) {
+						if (strings.Contains(responseContent, subscriptionInactiveMsg) &&
+							(strings.Contains(responseContent, inactiveMsg) || strings.Contains(responseContent, suspendedMsg))) ||
+							strings.Contains(responseContent, outOfMessagesMsg) {
 							// 将token标记为不可用
 							err = config.RedisHSet(tokenKey, "status", "disabled")
 							if err != nil {
@@ -522,7 +527,7 @@ func CheckTokenTenantURL(token string, sessionID string) (string, error) {
 							logger.Log.WithFields(logrus.Fields{
 								"token":         token,
 								"response_body": responseContent,
-							}).Info("token: 检测到订阅非活动状态，已被标记为不可用")
+							}).Info("token: 检测到订阅异状态，TOKEN已标记为不可用")
 							isInvalid = true
 							return
 						}
